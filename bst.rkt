@@ -38,6 +38,12 @@
     ([> x (car tree)] (isLeaf? (right-subtree tree) x))
     (else #f)))
 
+; returns the largest node in a binary tree
+(define (max-node tree)
+  (cond
+    ([null? (right-subtree tree)] (car tree))
+    (else (max-node (right-subtree tree)))))
+
 (define (hasOneChild? x)
   (cond
     ([xor (null? (left-subtree x)) (null? (right-subtree x))] #t)
@@ -55,20 +61,29 @@
     ([> x (car tree)] (list (car tree) (car (cdr tree)) (bst-insert (car (cdr (cdr tree))) x)))
     (else tree)))
 
-(trace-define (bst-delete tree x)
+(define (bst-delete tree x)
   (cond
     ([not(bst-contains? tree x)] tree) ; this is identical to Java's behavior with ArrayList.remove()
     ([and (empty? (left-subtree tree)) (empty? (right-subtree tree)) (= x (car tree))] '(() () ())) ; just a root node
     (else (bst-delete-recursive tree x))))
 
-(trace-define (bst-delete-recursive tree x)
+(define (bst-delete-recursive tree x)
   (cond
     ([null? tree] null)
     ([isLeaf? tree x] (leaf-deletion tree x))
-    ([and (= x (car tree)) (hasOneChild? tree)] tree)
-    ([and (= x (car tree)) (hasTwoChildren? tree)] tree)
-    (else (cons (bst-delete-recursive (left-subtree tree) x) (bst-delete-recursive (right-subtree tree) x)))))
-     ; delete and relink to smallest node in right tree)
+    ([< x (car tree)] (cons (car tree) (cons ((bst-delete-recursive (left-subtree tree) x) (right-subtree tree)))))
+    ([> x (car tree)] (cons (car tree) (cons (left-subtree tree) (bst-delete-recursive (right-subtree tree) x))))
+    ([and (= x (car tree)) (hasOneChild? tree)] (relink-child tree x))
+    ([and (= x (car tree)) (hasTwoChildren? tree)] (cons (relink-children tree x) null))))
+
+(define (relink-child tree x)
+  (cond
+    ([null? (right-subtree tree)] (cons (left-subtree tree) null))
+    (else (cons (right-subtree tree) null))))
+
+(define (relink-children tree x)
+    (cons (max-node (right-subtree tree))
+           (cons (left-subtree tree) (cons (bst-delete (right-subtree tree) (max-node (right-subtree tree))) null))))
 
 (define (empty-bst)
   (cons null (cons null (cons null '()))))
@@ -124,6 +139,7 @@
 (define c (bst-insert (bst-insert (bst-insert null 5) 8) 2))
 (define d (bst-insert (bst-insert (bst-insert (bst-insert (bst-insert null 5) 8) 2) 6) 7))
 (define e (bst-insert (bst-insert (bst-insert (bst-insert (bst-insert null 5) 8) 2) 6) 9))
+(define f (bst-insert (bst-insert (bst-insert (bst-insert (bst-insert null 5) 9) 2) 6) 7))
 
 ; unit tests
 (check-equal? '(5 () ()) a)
@@ -154,5 +170,8 @@
 (check-equal? (bst-delete b 10) b "Deleting nothing should do nothing") ; this is questionable behavior, but mimics Java
 (check-equal? (bst-delete c 8) '(5 (2 () ()) (() () ())) "Testing leaf deletion on tree c")
 (check-equal? (bst-delete c 2) '(5 (() () ()) (8 () ())) "Testing leaf deletion on tree c")
-;(check-equal? (bst-delete d 8) '(5 (2 () ()) (6 () (7 () ()))) "Testing one child deletion on d")
-;(check-equal? (bst-delete e 8) '(5 (2 () ()) (9 (6 () ()) (() () ()))) "Testing two child deletion on e")
+(check-equal? (bst-delete d 8) '(5 (2 () ()) (6 () (7 () ()))) "Testing one child deletion on d")
+(check-equal? (bst-delete e 8) '(5 (2 () ()) (9 (6 () ()) (() () ()))) "Testing two child deletion on e")
+(check-equal? (max-node a) 5 "Testing largest node in a tree is 5")
+(check-equal? (max-node c) 8 "Testing largest node in c tree is 8")
+(check-equal? (max-node e) 9 "Testing largest node in e tree is 9")
