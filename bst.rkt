@@ -25,7 +25,7 @@
     (else (get-subtree (left-subtree tree) x) (get-subtree (right-subtree tree) x))))
 
 ; Returns true if x in tree is a leaf - otherwise false
-(trace-define (isLeaf? tree x)
+(define (isLeaf? tree x)
   (cond
     ; the tree is empty
     ([or (empty? tree) (empty? (car tree))] #f)
@@ -33,14 +33,20 @@
     ([and (= x (car tree)) (null? (left-subtree tree)) (null? (right-subtree tree))] #t)
     ; the root is not equal to x but both subtrees are null
     ([and (null? (left-subtree tree)) (null? (right-subtree tree))] #f)
-    ; subtrees are not null, recursively check subtrees
+    ; subtrees are not null, tail recursively check subtrees
     ([< x (car tree)] (isLeaf? (left-subtree tree) x))
     ([> x (car tree)] (isLeaf? (right-subtree tree) x))
     (else #f)))
-    ;(else (isLeaf? (left-subtree tree) x) (isLeaf? (right-subtree tree) x))))
-    ;([and (null? (left-subtree (get-subtree tree x))) (null? (right-subtree (get-subtree tree x)))] #t)
-    ;(else #f)))
 
+(define (hasOneChild? x)
+  (cond
+    ([xor (null? (left-subtree x)) (null? (right-subtree x))] #t)
+    (else #f)))
+
+(define (hasTwoChildren? x)
+  (cond
+    ([and (not(null? (left-subtree x))) (not(null? (right-subtree x)))] #t)
+    (else #f)))
 
 (define (bst-insert tree x)
   (cond
@@ -51,23 +57,52 @@
 
 (trace-define (bst-delete tree x)
   (cond
-    ([null? (car tree)] null)
-    ([empty? (car tree)] null)
-    ([isLeaf? tree x] tree) ; return tree without x
-    ;([hasOneChild? x] relink x.parent to x.child)
-    ;([hasTwoChildren? x] delete and relink to smallest node in right tree)
-    ([not(= x (car tree))])))
+    ([not(bst-contains? tree x)] tree) ; this is identical to Java's behavior with ArrayList.remove()
+    ([and (empty? (left-subtree tree)) (empty? (right-subtree tree)) (= x (car tree))] '(() () ())) ; just a root node
+    (else (bst-delete-recursive tree x))))
+
+(trace-define (bst-delete-recursive tree x)
+  (cond
+    ([null? tree] null)
+    ([isLeaf? tree x] (leaf-deletion tree x))
+    ([and (= x (car tree)) (hasOneChild? tree)] tree)
+    ([and (= x (car tree)) (hasTwoChildren? tree)] tree)
+    (else (cons (bst-delete-recursive (left-subtree tree) x) (bst-delete-recursive (right-subtree tree) x)))))
+     ; delete and relink to smallest node in right tree)
+
+(define (empty-bst)
+  (cons null (cons null (cons null '()))))
+
+(define (leaf-deletion tree x)
+  (cond
+    ([< x (car tree)] (cons (car tree) (cons (empty-bst) (cdr (cdr tree)))))
+    (else (cons (car tree) (cons (car (cdr tree)) (cons (empty-bst) null))))))
+
+(define (blank-node x tree)
+ (cond
+  ((null? tree) '())
+  ((list? (car tree)) (cons (blank-node x (car tree)) (blank-node x (cdr tree))))
+  ([= x (car tree)] (cons '() (blank-node a (cdr tree))))
+  (else (cons (car tree) (blank-node x (cdr tree))))))
   
-(trace-define (empty-tree? tree)
+(define (empty-tree? tree)
   (cond
     ([null? (car tree)] true)
     (else false)))
 
+(define (bst-print tree)
+  (print "  ")
+  (print (car tree))
+  (newline)
+  (print (right-subtree tree))
+  (print " ")
+  (print (left-subtree tree)))
+
 (define (bst-contains? tree x)
   (cond
-    ([empty? tree] false)
-    ([null? (car tree)] false)
-    ([= x (car tree)] true)
+    ([empty? tree] #f)
+    ([null? (car tree)] #f)
+    ([= x (car tree)] #t)
     ([< x (car tree)] (bst-contains? (left-subtree tree) x))
     ([> x (car tree)] (bst-contains? (right-subtree tree) x))))
 
@@ -88,20 +123,13 @@
 (define b (bst-insert null null))
 (define c (bst-insert (bst-insert (bst-insert null 5) 8) 2))
 (define d (bst-insert (bst-insert (bst-insert (bst-insert (bst-insert null 5) 8) 2) 6) 7))
+(define e (bst-insert (bst-insert (bst-insert (bst-insert (bst-insert null 5) 8) 2) 6) 9))
 
 ; unit tests
-(check-equal? '(5 () ())
-              (bst-insert null 5))
-(check-equal? '(() () ())
-              (bst-insert null null))
-(check-equal? '(5
-                (2 () ()) (8 () ()))
-              (bst-insert (bst-insert (bst-insert null 5) 8) 2))
-(check-equal? '(5
-                (2 () ()) (8
-                       (6 ()
-                          (7 () ())) ()))
-              (bst-insert (bst-insert (bst-insert (bst-insert (bst-insert null 5) 8) 2) 6) 7))
+(check-equal? '(5 () ()) a)
+(check-equal? '(() () ()) b)
+(check-equal? '(5(2 () ()) (8 () ())) c)
+(check-equal? '(5(2 () ()) (8(6 ()(7 () ())) ())) d)
 (check-equal? (empty-tree? b) #t "Empty tree should return true")
 (check-equal? (empty-tree? c) #f "Non-empty tree should return false")
 (check-equal? (bst-size a) 1 "One node size test")
@@ -118,8 +146,13 @@
 (check-equal? (isLeaf? d 8) #f "Not a leaf")
 (check-equal? (isLeaf? d 6) #f "Not a leaf")
 (check-equal? (isLeaf? d 7) #t "Is a leaf")
-
 (check-equal? (bst-height a) 0 "Height of a tree with only one node should be zero")
 (check-equal? (bst-height b) -1 "Height of a tree with zero nodes should be -1")
 (check-equal? (bst-height c) 1 "Height of node with two children should be 1")
-
+(check-equal? (bst-contains? a 5) #t "Tree a contains 5")
+(check-equal? (bst-delete a 5) '(() () ()) "Deleting 5 from a should yield an empty tree")
+(check-equal? (bst-delete b 10) b "Deleting nothing should do nothing") ; this is questionable behavior, but mimics Java
+(check-equal? (bst-delete c 8) '(5 (2 () ()) (() () ())) "Testing leaf deletion on tree c")
+(check-equal? (bst-delete c 2) '(5 (() () ()) (8 () ())) "Testing leaf deletion on tree c")
+;(check-equal? (bst-delete d 8) '(5 (2 () ()) (6 () (7 () ()))) "Testing one child deletion on d")
+;(check-equal? (bst-delete e 8) '(5 (2 () ()) (9 (6 () ()) (() () ()))) "Testing two child deletion on e")
